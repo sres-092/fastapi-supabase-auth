@@ -81,6 +81,6 @@ dependency has returned a verified user.
 Click **Authorize**, paste an access token from `/auth/login`, and the
 padlocked routes can be tested directly from the browser.
 
-![Swagger UI with bearer auth](swagger-1.png) 
+![Swagger UI with bearer auth](swagger.png)
 
-![Swagger UI with bearer auth](swagger_1-1.png)
+![Authorized profile request](swagger_1.png)
