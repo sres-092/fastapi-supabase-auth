@@ -1,5 +1,6 @@
 import os
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Depends, Response
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -12,6 +13,24 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 app = FastAPI(title="Auth API", description="FastAPI API with Supabase authentication", version="1.0.0")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_token(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> str:
+    if credentials is None or credentials.scheme.lower() != "bearer" or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="Access token required")
+    return credentials.credentials
+
+
+def get_current_user(token: str = Depends(get_token)):
+    try:
+        response = supabase.auth.get_user(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if response is None or response.user is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return response.user
 
 print("Server running and connected to Supabase")
 
@@ -50,17 +69,19 @@ async def public_info():
 
 
 @app.get("/protected/profile", summary="Private profile — requires a valid token")
-async def profile(authorization: str | None = Header(default=None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Access token required")
-    token = authorization.removeprefix("Bearer ").strip()
-    if not token:
-        raise HTTPException(status_code=401, detail="Access token required")
+async def profile(user = Depends(get_current_user)):
+    return {"id": user.id, "email": user.email, "created_at": user.created_at}
+
+
+@app.get("/protected/dashboard", summary="Private dashboard — requires a valid token")
+async def dashboard(user = Depends(get_current_user)):
+    return {"message": f"Welcome to your dashboard, {user.email}"}
+
+
+@app.post("/auth/logout", status_code=204, summary="Log out and end the session")
+async def logout(user = Depends(get_current_user), token: str = Depends(get_token)):
     try:
-        response = supabase.auth.get_user(token)
+        supabase.auth.admin.sign_out(token)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    if response is None or response.user is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    user = response.user
-    return {"id": user.id, "email": user.email, "created_at": user.created_at}
+    return Response(status_code=204)
