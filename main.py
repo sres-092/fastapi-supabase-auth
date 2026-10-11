@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -43,3 +43,17 @@ async def login(creds: Credentials):
         }
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid login credentials")
+
+@app.get("/public/info", summary="Public information — no login needed")
+async def public_info():
+    return {"message": "Welcome stranger! This info is public."}
+
+
+@app.get("/protected/profile", summary="Private profile — requires a valid token")
+async def profile(authorization: str | None = Header(default=None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Access token required")
+    token = authorization.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Access token required")
+    return {"message": "token received"}
