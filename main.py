@@ -56,4 +56,11 @@ async def profile(authorization: str | None = Header(default=None)):
     token = authorization.removeprefix("Bearer ").strip()
     if not token:
         raise HTTPException(status_code=401, detail="Access token required")
-    return {"message": "token received"}
+    try:
+        response = supabase.auth.get_user(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if response is None or response.user is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    user = response.user
+    return {"id": user.id, "email": user.email, "created_at": user.created_at}
